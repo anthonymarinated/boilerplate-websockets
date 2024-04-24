@@ -7,6 +7,7 @@ const session = require('express-session');
 const passport = require('passport');
 const { ObjectID } = require('mongodb');
 const LocalStrategy = require('passport-local');
+const bcrypt = require('bcrypt');
 
 const app = express();
 
@@ -43,7 +44,9 @@ myDB(async client => {
   });
 
   app.route('/register').post((req, res, next) => {
-    console.log(req.body); // we get req.body.username and req.body.password from lines 24 and 27 in index.pug
+    // hash request body password 
+    const hash = bcrypt.hashSync(req.body.password, 12)
+    // console.log(req.body); // we get req.body.username and req.body.password from lines 24 and 27 in index.pug
     myDataBase.findOne({ username: req.body.username }, (err, user) => {
       if (err) {
         next(err);
@@ -51,7 +54,7 @@ myDB(async client => {
         res.redirect('/');
       } else {
         //if a user is not found and no errors occur, then insertOne into the database with username and password
-        myDataBase.insertOne({ username: req.body.username, password: req.body.password}, (err, doc) => {
+        myDataBase.insertOne({ username: req.body.username, password: hash}, (err, doc) => {
           if (err) res.redirect('/');
           //as long as no errors occur there call next to go to step 2 which is to authenticate on line 165
           else next(null, doc.ops[0]); // The inserted document is held within the ops property of the doc
@@ -59,8 +62,7 @@ myDB(async client => {
       }
     });
   },
-    passport.authenticate('local', { failureRedirect: '/' }),
-    (req, res, next) => {
+    passport.authenticate('local', { failureRedirect: '/' }), (req, res, next) => {
       res.redirect('/profile');
     }
   );
@@ -93,7 +95,9 @@ myDB(async client => {
       console.log(`User ${username} attempted to log in.`);
       if (err) { return done(err); }
       if (!user) { return done(null, false); }
-      if (password !== user.password) { return done(null, false); }
+      if (!bcrypt.compareSync(password, user.password)) { 
+        return done(null, false); 
+      }
       return done(null, user);
     });
   }));
