@@ -5,9 +5,8 @@ const myDB = require('./connection');
 const fccTesting = require('./freeCodeCamp/fcctesting.js');
 const session = require('express-session');
 const passport = require('passport');
-const { ObjectID } = require('mongodb');
-const LocalStrategy = require('passport-local');
-const bcrypt = require('bcrypt');
+const routes = require('./routes.js');
+const auth = require('./auth.js');
 
 const app = express();
 
@@ -31,99 +30,13 @@ app.use(express.urlencoded({ extended: true }));
 
 myDB(async client => {
   const myDataBase = await client.db('database').collection('users');
-
-  // Be sure to change the title
-  app.route('/').get((req, res) => {
-    //Change the response to render the Pug template
-    res.render('index', {
-      title: 'Connected to Database',
-      message: 'Please login',
-      showLogin: true,
-      showRegistration: true
-    });
-  });
-
-  app.route('/register').post((req, res, next) => {
-    // hash request body password 
-    const hash = bcrypt.hashSync(req.body.password, 12)
-    // console.log(req.body); // we get req.body.username and req.body.password from lines 24 and 27 in index.pug
-    myDataBase.findOne({ username: req.body.username }, (err, user) => {
-      if (err) {
-        next(err);
-      } else if (user) {
-        res.redirect('/');
-      } else {
-        //if a user is not found and no errors occur, then insertOne into the database with username and password
-        myDataBase.insertOne({ username: req.body.username, password: hash}, (err, doc) => {
-          if (err) res.redirect('/');
-          //as long as no errors occur there call next to go to step 2 which is to authenticate on line 165
-          else next(null, doc.ops[0]); // The inserted document is held within the ops property of the doc
-        });
-      }
-    });
-  },
-    passport.authenticate('local', { failureRedirect: '/' }), (req, res, next) => {
-      res.redirect('/profile');
-    }
-  );
-
-
-  app.post('/login', passport.authenticate('local', { failureRedirect: '/' }), (req, res) => {
-    res.redirect('/profile');
-  });
-
-  app.get('/profile', ensureAuthenticated, (req,res) => {
-    res.render('profile', { username: req.user.username });
-  });
-
-  app.get('/logout', (req, res) => {
-    req.logout((err) => {
-      if(err){
-        console.log('Logout error: ', err);
-        return next(err);
-      }
-      res.redirect('/');
-    });
-  });
-
-  app.use((req, res, next) => {
-    res.status(404).type('text').send('Not Found');
-  });
-
-  passport.use(new LocalStrategy((username, password, done) => {
-    myDataBase.findOne({ username: username }, (err, user) => {
-      console.log(`User ${username} attempted to log in.`);
-      if (err) { return done(err); }
-      if (!user) { return done(null, false); }
-      if (!bcrypt.compareSync(password, user.password)) { 
-        return done(null, false); 
-      }
-      return done(null, user);
-    });
-  }));
-
-  passport.serializeUser((user, done) => {
-    done(null, user._id);
-  });
-  
-  passport.deserializeUser((id, done) => {
-    myDataBase.findOne({ _id: new ObjectID(id) }, (err, doc) => {
-      done(null, doc);
-    });
-  });
-
+  routes(app, myDataBase);
+  auth(app, myDataBase);
 }).catch(e => {
   app.route('/').get((req, res) => {
     res.render('index', { title: e, message: 'Unable to connect to database' });
   });
 });
-
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.redirect('/');
-};
   
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
