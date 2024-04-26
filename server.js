@@ -10,6 +10,10 @@ const auth = require('./auth.js');
 
 const app = express();
 
+
+const http = require('http').createServer(app); //http wont be able to acess app before initialization if this line is before the const app in line 11 **
+const io = require('socket.io')(http);
+
 app.set('view engine', 'pug');
 app.set('views', './views/pug');
 
@@ -30,8 +34,14 @@ app.use(express.urlencoded({ extended: true }));
 
 myDB(async client => {
   const myDataBase = await client.db('database').collection('users');
+
   routes(app, myDataBase);
   auth(app, myDataBase);
+
+  io.on('connection', socket => {
+    console.log('A user has connected');
+  });
+  
 }).catch(e => {
   app.route('/').get((req, res) => {
     res.render('index', { title: e, message: 'Unable to connect to database' });
@@ -39,6 +49,6 @@ myDB(async client => {
 });
   
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+http.listen(PORT, () => {
   console.log(`Listening on port ${PORT}`);
 });
