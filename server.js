@@ -65,13 +65,25 @@ myDB(async client => {
       connected: true
     });
 
-  console.log('A user has connected');
+    console.log('A user has connected');
+
+    //listening to the socket for the chat message event
+    socket.on('chat message', (message) => {
+      //once the event is received
+        //should emit the event chat message to all the sockets
+          //sending a data object containing the username and message
+      io.emit('chat message', { username: socket.request.user.username, message});
+    });
 
     socket.on('disconnect', () => {
-      io.emit('user count', currentUsers);
-      --curentUsers;
       console.log('A user has disconnected');
-    }); 
+      --currentUsers;
+      io.emit('user', {
+        username: socket.request.user.username,
+        currentUsers,
+        connected: false
+      });
+    });
   });
 
 }).catch(e => {
